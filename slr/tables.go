@@ -1,0 +1,4 @@
+package slr
+
+func TTable() {
+}

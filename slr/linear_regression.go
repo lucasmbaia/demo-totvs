@@ -14,6 +14,8 @@ type LinearRegression struct {
 }
 
 type QuadraticLinearRegression struct {
+	VX		  []float64 `json:"-"`
+	VY		  []float64 `json:"-"`
 	VYP		  []float64
 	B0		  float64
 	B1		  float64
@@ -37,7 +39,8 @@ type AnalysisVariance struct {
 	B1Variance		  float64
 	TCalcB0			  float64
 	TCalcB1			  float64
-	CoeficienteRegressao	  float64
+	TTab			  float64
+	CoeficienteDeterminacao	  float64
 	IsSignificantRegression	  bool
 	IsSignificantInterception bool
 }
@@ -54,6 +57,7 @@ func CalcSimpleLinearRegression(vx, vy []float64) (lr LinearRegression) {
 		squareSumY  float64
 		squareSumPY float64
 		y	    float64
+		err	    error
 	)
 
 	_, sumY, averageX, averageY = CalcSumAndAverageValues(vx, vy)
@@ -85,17 +89,119 @@ func CalcSimpleLinearRegression(vx, vy []float64) (lr LinearRegression) {
 	lr.AnalysisVariance.QuadradoMedioRegressao = lr.AnalysisVariance.SomaDeQuadradosRegressao / lr.AnalysisVariance.GrauDeLiberadeRegressao
 	lr.AnalysisVariance.QuadradoMedioResiduo = lr.AnalysisVariance.SomaDeQuadradosResiduo / lr.AnalysisVariance.GrauDeLiberadeResiduo
 	lr.AnalysisVariance.FCalc = lr.AnalysisVariance.QuadradoMedioRegressao / lr.AnalysisVariance.QuadradoMedioResiduo
-	lr.AnalysisVariance.FTab = 5.32
-	lr.AnalysisVariance.CoeficienteRegressao = lr.AnalysisVariance.SomaDeQuadradosRegressao / lr.AnalysisVariance.SomaDeQuadradosTotal
 
-	if lr.AnalysisVariance.FCalc > lr.AnalysisVariance.FTab {
-		lr.AnalysisVariance.IsSignificantRegression = true
+	if lr.AnalysisVariance.FTab, err = GetFTable(fmt.Sprintf("%d", int(lr.AnalysisVariance.GrauDeLiberadeRegressao)), fmt.Sprintf("%d", int(lr.AnalysisVariance.GrauDeLiberadeResiduo))); err == nil {
+		if math.Abs(lr.AnalysisVariance.FCalc) > lr.AnalysisVariance.FTab {
+			lr.AnalysisVariance.IsSignificantRegression = true
+		}
 	}
+
+	lr.AnalysisVariance.CoeficienteDeterminacao = lr.AnalysisVariance.SomaDeQuadradosRegressao / lr.AnalysisVariance.SomaDeQuadradosTotal
 
 	lr.AnalysisVariance.B0Variance, lr.AnalysisVariance.B1Variance = CalcVarianceB0B1(vx, lr.AnalysisVariance.QuadradoMedioResiduo)
 	lr.AnalysisVariance.TCalcB0 = b0 / math.Sqrt(lr.AnalysisVariance.B0Variance)
 	lr.AnalysisVariance.TCalcB1 = b1 / math.Sqrt(lr.AnalysisVariance.B1Variance)
-	lr.AnalysisVariance.IsSignificantInterception = true
+
+	if lr.AnalysisVariance.TTab, err = GetTTable("5%", fmt.Sprintf("%d", int(lr.AnalysisVariance.GrauDeLiberadeResiduo))); err == nil {
+		if math.Abs(lr.AnalysisVariance.TCalcB0) > lr.AnalysisVariance.TTab {
+			lr.AnalysisVariance.IsSignificantInterception = true
+		}
+	}
+
+	return
+}
+
+func CalcQuadraticLinearRegressionWithSeasonality(vx, vy []float64, p int) (lr QuadraticLinearRegression, err error) {
+	var (
+		residue	      []float64
+		indiceSazonal = make([]float64, p)
+		members	      float64
+		iterator      int
+		xp	      int
+		sumY	    float64
+		sumPY	    float64
+		squareSumY  float64
+		squareSumPY float64
+		differ	    float64
+	)
+
+	if lr, err = CalcQuadraticLinearRegression(vx, vy); err != nil {
+		return
+	}
+
+	for idx, y := range vy {
+		residue = append(residue, (y * 100) / lr.VYP[idx])
+	}
+
+	for i := 0; i < p; i++ {
+		iterator = i
+		xp = p
+		members = 0
+
+		for {
+			indiceSazonal[i] += residue[iterator:iterator+1][0]
+			members++
+
+			if iterator + p >= len(residue) {
+				break
+			}
+
+			iterator += xp
+			if len(residue) - iterator < p {
+				xp = len(residue) - iterator
+			}
+		}
+
+		indiceSazonal[i] = indiceSazonal[i] / members
+	}
+
+	for _, y := range vy {
+		sumY += y
+		squareSumY += y * y
+	}
+
+	iterator = 0
+	for idx, y := range lr.VYP {
+		lr.VYP[idx] = (y * indiceSazonal[iterator]) / 100
+		sumPY += lr.VYP[idx]
+		squareSumPY += lr.VYP[idx] * lr.VYP[idx]
+
+		iterator++
+
+		if iterator == p {
+			iterator = 0
+		}
+	}
+
+	lr.AnalysisVariance.SomaDeQuadradosResiduo = 0
+	for idx, _ := range vy {
+		differ = vy[idx] - lr.VYP[idx]
+		lr.AnalysisVariance.SomaDeQuadradosResiduo += differ * differ
+	}
+
+	lr.AnalysisVariance.SomaDeQuadradosTotal = (squareSumY / 1) - ((sumY * sumY) / float64(len(vy)))
+	lr.AnalysisVariance.SomaDeQuadradosRegressao = lr.AnalysisVariance.SomaDeQuadradosTotal - lr.AnalysisVariance.SomaDeQuadradosResiduo
+	lr.AnalysisVariance.QuadradoMedioRegressao = lr.AnalysisVariance.SomaDeQuadradosRegressao / lr.AnalysisVariance.GrauDeLiberadeRegressao
+	lr.AnalysisVariance.QuadradoMedioResiduo = lr.AnalysisVariance.SomaDeQuadradosResiduo / lr.AnalysisVariance.GrauDeLiberadeResiduo
+	lr.AnalysisVariance.FCalc = lr.AnalysisVariance.QuadradoMedioRegressao / lr.AnalysisVariance.QuadradoMedioResiduo
+
+	if lr.AnalysisVariance.FTab, _ = GetFTable(fmt.Sprintf("%d", int(lr.AnalysisVariance.GrauDeLiberadeRegressao)), fmt.Sprintf("%d", int(lr.AnalysisVariance.GrauDeLiberadeResiduo))); lr.AnalysisVariance.FTab > 0 {
+		if math.Abs(lr.AnalysisVariance.FCalc) > lr.AnalysisVariance.FTab {
+			lr.AnalysisVariance.IsSignificantRegression = true
+		}
+	}
+
+	lr.AnalysisVariance.CoeficienteDeterminacao = lr.AnalysisVariance.SomaDeQuadradosRegressao / lr.AnalysisVariance.SomaDeQuadradosTotal
+
+	lr.AnalysisVariance.B0Variance, lr.AnalysisVariance.B1Variance = CalcVarianceB0B1(vx, lr.AnalysisVariance.QuadradoMedioResiduo)
+	lr.AnalysisVariance.TCalcB0 = lr.B0 / math.Sqrt(lr.AnalysisVariance.B0Variance)
+	lr.AnalysisVariance.TCalcB1 = lr.B1 / math.Sqrt(lr.AnalysisVariance.B1Variance)
+
+	if lr.AnalysisVariance.TTab, err = GetTTable("5%", fmt.Sprintf("%d", int(lr.AnalysisVariance.GrauDeLiberadeResiduo))); lr.AnalysisVariance.TTab > 0 {
+		if math.Abs(lr.AnalysisVariance.TCalcB0) > lr.AnalysisVariance.TTab {
+			lr.AnalysisVariance.IsSignificantInterception = true
+		}
+	}
 
 	return
 }
@@ -115,6 +221,8 @@ func CalcQuadraticLinearRegression(vx, vy []float64) (lr QuadraticLinearRegressi
 		return
 	}
 
+	lr.VX = vx
+	lr.VY = vy
 	lr.B0 = values[0]
 	lr.B1 = values[1]
 	lr.B2 = values[2]
@@ -142,17 +250,24 @@ func CalcQuadraticLinearRegression(vx, vy []float64) (lr QuadraticLinearRegressi
 	lr.AnalysisVariance.QuadradoMedioRegressao = lr.AnalysisVariance.SomaDeQuadradosRegressao / lr.AnalysisVariance.GrauDeLiberadeRegressao
 	lr.AnalysisVariance.QuadradoMedioResiduo = lr.AnalysisVariance.SomaDeQuadradosResiduo / lr.AnalysisVariance.GrauDeLiberadeResiduo
 	lr.AnalysisVariance.FCalc = lr.AnalysisVariance.QuadradoMedioRegressao / lr.AnalysisVariance.QuadradoMedioResiduo
-	lr.AnalysisVariance.FTab = 5.32
-	lr.AnalysisVariance.CoeficienteRegressao = lr.AnalysisVariance.SomaDeQuadradosRegressao / lr.AnalysisVariance.SomaDeQuadradosTotal
 
-	if lr.AnalysisVariance.FCalc > lr.AnalysisVariance.FTab {
-		lr.AnalysisVariance.IsSignificantRegression = true
+	if lr.AnalysisVariance.FTab, _ = GetFTable(fmt.Sprintf("%d", int(lr.AnalysisVariance.GrauDeLiberadeRegressao)), fmt.Sprintf("%d", int(lr.AnalysisVariance.GrauDeLiberadeResiduo))); lr.AnalysisVariance.FTab > 0 {
+		if math.Abs(lr.AnalysisVariance.FCalc) > lr.AnalysisVariance.FTab {
+			lr.AnalysisVariance.IsSignificantRegression = true
+		}
 	}
+
+	lr.AnalysisVariance.CoeficienteDeterminacao = lr.AnalysisVariance.SomaDeQuadradosRegressao / lr.AnalysisVariance.SomaDeQuadradosTotal
 
 	lr.AnalysisVariance.B0Variance, lr.AnalysisVariance.B1Variance = CalcVarianceB0B1(vx, lr.AnalysisVariance.QuadradoMedioResiduo)
 	lr.AnalysisVariance.TCalcB0 = lr.B0 / math.Sqrt(lr.AnalysisVariance.B0Variance)
 	lr.AnalysisVariance.TCalcB1 = lr.B1 / math.Sqrt(lr.AnalysisVariance.B1Variance)
-	lr.AnalysisVariance.IsSignificantInterception = true
+
+	if lr.AnalysisVariance.TTab, err = GetTTable("5%", fmt.Sprintf("%d", int(lr.AnalysisVariance.GrauDeLiberadeResiduo))); lr.AnalysisVariance.TTab > 0 {
+		if math.Abs(lr.AnalysisVariance.TCalcB0) > lr.AnalysisVariance.TTab {
+			lr.AnalysisVariance.IsSignificantInterception = true
+		}
+	}
 
 	return
 }
@@ -180,10 +295,7 @@ func SolveGaussian(vx, vy []float64) (values []float64, err error) {
 		sumX2Y += (vx[idx] * vx[idx]) * vy[idx]
 	}
 
-	relational = [][]float64{
-		{elements, sumX, sumX2},
-		{sumX, sumX2, sumX3},
-		{sumX2, sumX3, sumX4}}
+	relational = [][]float64{{elements, sumX, sumX2},{sumX, sumX2, sumX3},{sumX2, sumX3, sumX4}}
 
 	values, err = GaussPartial(relational, []float64{sumY, sumXY, sumX2Y})
 
@@ -240,22 +352,6 @@ func GaussPartial(a0 [][]float64, b0 []float64) ([]float64, error) {
 	return x, nil
 }
 
-/*func SolveGaussian(relational [][]float64) {
-	var (
-		pivo  float64
-		fator float64
-	)
-
-	pivo = relational[0][0]
-
-	fator = relational[1][0] / relational[0][0]
-	relational[1][0] = relational[1][0] - (fator * pivo)
-	relational[1][1] = relational[1][1] - (fator * pivo)
-	relational[1][2] = relational[1][2] - (fator * pivo)
-	relational[1][3] = relational[1][3] - (fator * pivo)
-}*/
-
-
 func CalcVarianceB0B1(vx []float64, qmr float64) (varianceb0, varianceb1 float64) {
 	var (
 		sumX	    float64
@@ -270,9 +366,6 @@ func CalcVarianceB0B1(vx []float64, qmr float64) (varianceb0, varianceb1 float64
 	}
 
 	squareX = (sumX / elements) * (sumX / elements)
-	fmt.Println(squareX)
-	fmt.Println(squareSumX - ((sumX * sumX) / elements))
-	fmt.Println((squareX / (squareSumX - ((sumX * sumX) / elements))))
 	varianceb0 = ((1 / elements) + (squareX / (squareSumX - ((sumX * sumX) / elements)))) * qmr
 	varianceb1 = (1 / (squareSumX  - ((sumX * sumX) / elements))) * qmr
 
