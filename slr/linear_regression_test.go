@@ -16,13 +16,14 @@ func Test_CalcCoefficientPerson(t *testing.T) {
 
 func Test_CalcSimpleLinearRegression(t *testing.T) {
 	var (
-		//valuesX = []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}
-		//valuesY = []float64{684.20,584.10,765.38,892.28,885.40,677.02,1006.63,1122.06,1163.39,993.20,1312.46,1545.31,1596.20,1260.41,1735.16,2029.66,2107.79,1650.30,2304.40,2639.42}
-		valuesX = []float64{1.49,1.41,1.65,1.03,1.40,1.10,1.46,1.35,1.17,0.99}
-		valuesY = []float64{20.8,18.0,18.1,6.0,18.0,8.0,17.5,12.6,11.6,9.2}
+		valuesX = []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}
+		valuesY = []float64{684.20,584.10,765.38,892.28,885.40,677.02,1006.63,1122.06,1163.39,993.20,1312.46,1545.31,1596.20,1260.41,1735.16,2029.66,2107.79,1650.30,2304.40,2639.42}
+		//valuesX = []float64{1.49,1.41,1.65,1.03,1.40,1.10,1.46,1.35,1.17,0.99}
+		//valuesY = []float64{20.8,18.0,18.1,6.0,18.0,8.0,17.5,12.6,11.6,9.2}
+		valuesXP  = []float64{21, 22, 23}
 	)
 
-	lr := CalcSimpleLinearRegression(valuesX, valuesY)
+	lr := CalcSimpleLinearRegression(valuesX, valuesY, valuesXP)
 
 	if body, err := json.Marshal(lr); err != nil {
 		t.Fatal(err)
@@ -35,9 +36,10 @@ func Test_CalcQuadraticLinearRegression(t *testing.T) {
 	var (
 		valuesX = []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}
 		valuesY = []float64{684.20,584.10,765.38,892.28,885.40,677.02,1006.63,1122.06,1163.39,993.20,1312.46,1545.31,1596.20,1260.41,1735.16,2029.66,2107.79,1650.30,2304.40,2639.42}
+		valuesXP  = []float64{21, 22, 23}
 	)
 
-	lr, _ := CalcQuadraticLinearRegression(valuesX, valuesY)
+	lr, _ := CalcQuadraticLinearRegression(valuesX, valuesY, valuesXP)
 
 	if body, err := json.Marshal(lr); err != nil {
 		t.Fatal(err)
@@ -50,9 +52,10 @@ func Test_CalcQuadraticLinearRegressionWithSeasonality(t *testing.T) {
 	var (
 		valuesX = []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}
 		valuesY = []float64{684.20,584.10,765.38,892.28,885.40,677.02,1006.63,1122.06,1163.39,993.20,1312.46,1545.31,1596.20,1260.41,1735.16,2029.66,2107.79,1650.30,2304.40,2639.42}
+		valuesXP  = []float64{21, 22, 23}
 	)
 
-	lr, _ := CalcQuadraticLinearRegressionWithSeasonality(valuesX, valuesY, 4)
+	lr, _ := CalcQuadraticLinearRegressionWithSeasonality(valuesX, valuesY, valuesXP, 4)
 
 	if body, err := json.Marshal(lr); err != nil {
 		t.Fatal(err)

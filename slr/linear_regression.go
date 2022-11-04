@@ -7,7 +7,8 @@ import (
 )
 
 type LinearRegression struct {
-	VYP		  []float64 `json:"AxisY_Prediction"`
+	VYR		  []float64 `json:"AxisY_Regression"`
+	VYP		  []float64 `json:"AxisY_Prediction,omitempty"`
 	B0		  float64   `json:"CoeficienteLinear"`
 	B1		  float64   `json:"CoeficienteAngular"`
 	AnalysisVariance  AnalysisVariance
@@ -16,7 +17,8 @@ type LinearRegression struct {
 type QuadraticLinearRegression struct {
 	VX		  []float64 `json:"-"`
 	VY		  []float64 `json:"-"`
-	VYP		  []float64 `json:"AxisY_Prediction"`
+	VYR		  []float64 `json:"AxisY_Regression"`
+	VYP		  []float64 `json:"AxisY_Prediction,omitempty"`
 	B0		  float64   `json:"CoeficienteLinear"`
 	B1		  float64   `json:"CoeficienteAngular"`
 	B2		  float64   `json:"CoeficienteQuadratico"`
@@ -46,7 +48,7 @@ type AnalysisVariance struct {
 }
 
 
-func CalcSimpleLinearRegression(vx, vy []float64) (lr LinearRegression) {
+func CalcSimpleLinearRegression(vx, vy, vxp []float64) (lr LinearRegression) {
 	var (
 		sumY	    float64
 		sumPY	    float64
@@ -67,7 +69,7 @@ func CalcSimpleLinearRegression(vx, vy []float64) (lr LinearRegression) {
 	for _, x := range vx {
 		y = b0 + (b1 * x)
 
-		lr.VYP = append(lr.VYP, y)
+		lr.VYR = append(lr.VYR, y)
 		sumPY += y
 		squareSumPY += y * y
 	}
@@ -76,6 +78,9 @@ func CalcSimpleLinearRegression(vx, vy []float64) (lr LinearRegression) {
 		squareSumY += y * y
 	}
 
+	for _, x := range vxp {
+		lr.VYP = append(lr.VYP,  b0 + (b1 * x))
+	}
 
 	lr.B0 = b0
 	lr.B1 = b1
@@ -84,7 +89,7 @@ func CalcSimpleLinearRegression(vx, vy []float64) (lr LinearRegression) {
 	lr.AnalysisVariance.GrauDeLiberadeTotal = float64(len(vx)) - lr.AnalysisVariance.GrauDeLiberadeRegressao
 	lr.AnalysisVariance.GrauDeLiberadeResiduo = lr.AnalysisVariance.GrauDeLiberadeTotal - lr.AnalysisVariance.GrauDeLiberadeRegressao
 	lr.AnalysisVariance.SomaDeQuadradosTotal = (squareSumY / 1) - ((sumY * sumY) / float64(len(vy)))
-	lr.AnalysisVariance.SomaDeQuadradosRegressao = (squareSumPY / 1) - ((sumPY * sumPY) / float64(len(lr.VYP)))
+	lr.AnalysisVariance.SomaDeQuadradosRegressao = (squareSumPY / 1) - ((sumPY * sumPY) / float64(len(lr.VYR)))
 	lr.AnalysisVariance.SomaDeQuadradosResiduo = lr.AnalysisVariance.SomaDeQuadradosTotal - lr.AnalysisVariance.SomaDeQuadradosRegressao
 	lr.AnalysisVariance.QuadradoMedioRegressao = lr.AnalysisVariance.SomaDeQuadradosRegressao / lr.AnalysisVariance.GrauDeLiberadeRegressao
 	lr.AnalysisVariance.QuadradoMedioResiduo = lr.AnalysisVariance.SomaDeQuadradosResiduo / lr.AnalysisVariance.GrauDeLiberadeResiduo
@@ -111,26 +116,26 @@ func CalcSimpleLinearRegression(vx, vy []float64) (lr LinearRegression) {
 	return
 }
 
-func CalcQuadraticLinearRegressionWithSeasonality(vx, vy []float64, p int) (lr QuadraticLinearRegression, err error) {
+func CalcQuadraticLinearRegressionWithSeasonality(vx, vy, vxp []float64, p int) (lr QuadraticLinearRegression, err error) {
 	var (
 		residue	      []float64
 		indiceSazonal = make([]float64, p)
 		members	      float64
 		iterator      int
 		xp	      int
-		sumY	    float64
-		sumPY	    float64
-		squareSumY  float64
-		squareSumPY float64
-		differ	    float64
+		sumY	      float64
+		sumPY	      float64
+		squareSumY    float64
+		squareSumPY   float64
+		differ	      float64
 	)
 
-	if lr, err = CalcQuadraticLinearRegression(vx, vy); err != nil {
+	if lr, err = CalcQuadraticLinearRegression(vx, vy, vxp); err != nil {
 		return
 	}
 
 	for idx, y := range vy {
-		residue = append(residue, (y * 100) / lr.VYP[idx])
+		residue = append(residue, (y * 100) / lr.VYR[idx])
 	}
 
 	for i := 0; i < p; i++ {
@@ -161,11 +166,21 @@ func CalcQuadraticLinearRegressionWithSeasonality(vx, vy []float64, p int) (lr Q
 	}
 
 	iterator = 0
+	for idx, y := range lr.VYR {
+		lr.VYR[idx] = (y * indiceSazonal[iterator]) / 100
+		sumPY += lr.VYR[idx]
+		squareSumPY += lr.VYR[idx] * lr.VYR[idx]
+
+		iterator++
+
+		if iterator == p {
+			iterator = 0
+		}
+	}
+
+	iterator = 0
 	for idx, y := range lr.VYP {
 		lr.VYP[idx] = (y * indiceSazonal[iterator]) / 100
-		sumPY += lr.VYP[idx]
-		squareSumPY += lr.VYP[idx] * lr.VYP[idx]
-
 		iterator++
 
 		if iterator == p {
@@ -175,7 +190,7 @@ func CalcQuadraticLinearRegressionWithSeasonality(vx, vy []float64, p int) (lr Q
 
 	lr.AnalysisVariance.SomaDeQuadradosResiduo = 0
 	for idx, _ := range vy {
-		differ = vy[idx] - lr.VYP[idx]
+		differ = vy[idx] - lr.VYR[idx]
 		lr.AnalysisVariance.SomaDeQuadradosResiduo += differ * differ
 	}
 
@@ -206,11 +221,11 @@ func CalcQuadraticLinearRegressionWithSeasonality(vx, vy []float64, p int) (lr Q
 	return
 }
 
-func CalcQuadraticLinearRegression(vx, vy []float64) (lr QuadraticLinearRegression, err error) {
+func CalcQuadraticLinearRegression(vx, vy, vxp []float64) (lr QuadraticLinearRegression, err error) {
 	var (
-		values	[]float64
-		y	float64
-		elements  = float64(len(vx))
+		values	    []float64
+		y	    float64
+		elements    = float64(len(vx))
 		sumY	    float64
 		sumPY	    float64
 		squareSumY  float64
@@ -230,7 +245,7 @@ func CalcQuadraticLinearRegression(vx, vy []float64) (lr QuadraticLinearRegressi
 	for _, x := range vx {
 		y = lr.B0 + (lr.B1 * x) + (lr.B2 * (x * x))
 
-		lr.VYP = append(lr.VYP, y)
+		lr.VYR = append(lr.VYR, y)
 		sumPY += y
 		squareSumPY += y * y
 	}
@@ -240,12 +255,17 @@ func CalcQuadraticLinearRegression(vx, vy []float64) (lr QuadraticLinearRegressi
 		squareSumY += y * y
 	}
 
+	for _, x := range vxp {
+		y = lr.B0 + (lr.B1 * x) + (lr.B2 * (x * x))
+		lr.VYP = append(lr.VYP, y)
+	}
+
 	lr.AnalysisVariance.PearsonCorrelation = CalcCoefficientPerson(vx, vy)
 	lr.AnalysisVariance.GrauDeLiberadeRegressao = 2
 	lr.AnalysisVariance.GrauDeLiberadeTotal = elements - 1
 	lr.AnalysisVariance.GrauDeLiberadeResiduo = lr.AnalysisVariance.GrauDeLiberadeTotal - lr.AnalysisVariance.GrauDeLiberadeRegressao
 	lr.AnalysisVariance.SomaDeQuadradosTotal = (squareSumY / 1) - ((sumY * sumY) / float64(len(vy)))
-	lr.AnalysisVariance.SomaDeQuadradosRegressao = (squareSumPY / 1) - ((sumPY * sumPY) / float64(len(lr.VYP)))
+	lr.AnalysisVariance.SomaDeQuadradosRegressao = (squareSumPY / 1) - ((sumPY * sumPY) / float64(len(lr.VYR)))
 	lr.AnalysisVariance.SomaDeQuadradosResiduo = lr.AnalysisVariance.SomaDeQuadradosTotal - lr.AnalysisVariance.SomaDeQuadradosRegressao
 	lr.AnalysisVariance.QuadradoMedioRegressao = lr.AnalysisVariance.SomaDeQuadradosRegressao / lr.AnalysisVariance.GrauDeLiberadeRegressao
 	lr.AnalysisVariance.QuadradoMedioResiduo = lr.AnalysisVariance.SomaDeQuadradosResiduo / lr.AnalysisVariance.GrauDeLiberadeResiduo
