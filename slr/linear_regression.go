@@ -16,10 +16,10 @@ type LinearRegression struct {
 type QuadraticLinearRegression struct {
 	VX		  []float64 `json:"-"`
 	VY		  []float64 `json:"-"`
-	VYP		  []float64
-	B0		  float64
-	B1		  float64
-	B2		  float64
+	VYP		  []float64 `json:"AxisY_Prediction"`
+	B0		  float64   `json:"CoeficienteLinear"`
+	B1		  float64   `json:"CoeficienteAngular"`
+	B2		  float64   `json:"CoeficienteQuadratico"`
 	AnalysisVariance  AnalysisVariance
 }
 
