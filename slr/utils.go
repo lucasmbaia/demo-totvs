@@ -18,7 +18,7 @@ func GetTTable(importance, grau string) (value float64, err error){
 		column	    int
 	)
 
-	if file, err = os.Open("ttable.tsv"); err != nil {
+	if file, err = os.Open("/opt/files/ttable.tsv"); err != nil {
 		return
 	}
 	defer file.Close()
@@ -68,7 +68,7 @@ func GetFTable(grauRegressao, grauResiduo string) (value float64, err error){
 		column	    int
 	)
 
-	if file, err = os.Open("ftable.tsv"); err != nil {
+	if file, err = os.Open("/opt/files/ftable.tsv"); err != nil {
 		return
 	}
 	defer file.Close()
