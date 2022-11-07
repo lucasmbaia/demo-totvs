@@ -212,7 +212,7 @@ func CalcQuadraticLinearRegressionWithSeasonality(vx, vy, vxp []float64, p int) 
 	lr.AnalysisVariance.TCalcB0 = lr.B0 / math.Sqrt(lr.AnalysisVariance.B0Variance)
 	lr.AnalysisVariance.TCalcB1 = lr.B1 / math.Sqrt(lr.AnalysisVariance.B1Variance)
 
-	if lr.AnalysisVariance.TTab, err = GetTTable("5%", fmt.Sprintf("%d", int(lr.AnalysisVariance.GrauDeLiberadeResiduo))); lr.AnalysisVariance.TTab > 0 {
+	if lr.AnalysisVariance.TTab, _ = GetTTable("5%", fmt.Sprintf("%d", int(lr.AnalysisVariance.GrauDeLiberadeResiduo))); lr.AnalysisVariance.TTab > 0 {
 		if math.Abs(lr.AnalysisVariance.TCalcB0) > lr.AnalysisVariance.TTab {
 			lr.AnalysisVariance.IsSignificantInterception = true
 		}
@@ -283,7 +283,7 @@ func CalcQuadraticLinearRegression(vx, vy, vxp []float64) (lr QuadraticLinearReg
 	lr.AnalysisVariance.TCalcB0 = lr.B0 / math.Sqrt(lr.AnalysisVariance.B0Variance)
 	lr.AnalysisVariance.TCalcB1 = lr.B1 / math.Sqrt(lr.AnalysisVariance.B1Variance)
 
-	if lr.AnalysisVariance.TTab, err = GetTTable("5%", fmt.Sprintf("%d", int(lr.AnalysisVariance.GrauDeLiberadeResiduo))); lr.AnalysisVariance.TTab > 0 {
+	if lr.AnalysisVariance.TTab, _ = GetTTable("5%", fmt.Sprintf("%d", int(lr.AnalysisVariance.GrauDeLiberadeResiduo))); lr.AnalysisVariance.TTab > 0 {
 		if math.Abs(lr.AnalysisVariance.TCalcB0) > lr.AnalysisVariance.TTab {
 			lr.AnalysisVariance.IsSignificantInterception = true
 		}
